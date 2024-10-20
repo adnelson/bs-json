@@ -51,7 +51,7 @@ let char = json => {
 
 let date = json => Js.Date.fromString(string(json))
 
-let nullable = (decode, json) =>
+let nullable = decode => json =>
   if (Obj.magic(json): Js.null<'a>) === Js.null {
     Js.null
   } else {
@@ -59,14 +59,14 @@ let nullable = (decode, json) =>
   }
 
 /* TODO: remove this? */
-let nullAs = (value, json) =>
+let nullAs = value => json =>
   if (Obj.magic(json): Js.null<'a>) === Js.null {
     value
   } else {
     raise(DecodeError("Expected null, got " ++ _stringify(json)))
   }
 
-let array = (decode, json) =>
+let array = decode => json =>
   if Js.Array.isArray(json) {
     let source: array<Js.Json.t> = Obj.magic((json: Js.Json.t))
     let length = Js.Array.length(source)
@@ -84,9 +84,9 @@ let array = (decode, json) =>
     raise(DecodeError("Expected array, got " ++ _stringify(json)))
   }
 
-let list = (decode, json) => Array.to_list(array(decode, json))
+let list = decode => json => Array.to_list(array(decode)(json))
 
-let pair = (decodeA, decodeB, json) =>
+let pair = (decodeA, decodeB) => json =>
   if Js.Array.isArray(json) {
     let source: array<Js.Json.t> = Obj.magic((json: Js.Json.t))
     let length = Js.Array.length(source)
@@ -106,7 +106,7 @@ let pair = (decodeA, decodeB, json) =>
 
 let tuple2 = pair
 
-let tuple3 = (decodeA, decodeB, decodeC, json) =>
+let tuple3 = (decodeA, decodeB, decodeC) => json =>
   if Js.Array.isArray(json) {
     let source: array<Js.Json.t> = Obj.magic((json: Js.Json.t))
     let length = Js.Array.length(source)
@@ -128,7 +128,7 @@ let tuple3 = (decodeA, decodeB, decodeC, json) =>
     raise(DecodeError("Expected array, got " ++ _stringify(json)))
   }
 
-let tuple4 = (decodeA, decodeB, decodeC, decodeD, json) =>
+let tuple4 = (decodeA, decodeB, decodeC, decodeD) => json =>
   if Js.Array.isArray(json) {
     let source: array<Js.Json.t> = Obj.magic((json: Js.Json.t))
     let length = Js.Array.length(source)
@@ -150,7 +150,7 @@ let tuple4 = (decodeA, decodeB, decodeC, decodeD, json) =>
     raise(DecodeError("Expected array, got " ++ _stringify(json)))
   }
 
-let dict = (decode, json) =>
+let dict = decode => json =>
   if (
     Js.typeof(json) == "object" &&
       (!Js.Array.isArray(json) &&
@@ -173,7 +173,7 @@ let dict = (decode, json) =>
     raise(DecodeError("Expected object, got " ++ _stringify(json)))
   }
 
-let field = (key, decode, json) =>
+let field = (key, decode) => json =>
   if (
     Js.typeof(json) == "object" &&
       (!Js.Array.isArray(json) &&
@@ -198,17 +198,17 @@ let rec at = (key_path, decoder) =>
   | list{} => raise(Invalid_argument("Expected key_path to contain at least one element"))
   }
 
-let optional = (decode, json) =>
+let optional = decode => json =>
   try Some(decode(json)) catch {
   | DecodeError(_) => None
   }
 
-let oneOf = (decoders, json) => {
+let oneOf = decoders => json => {
   let rec inner = (decoders, errors) =>
     switch decoders {
     | list{} =>
       let formattedErrors = "\n- " ++ Js.Array.joinWith("\n- ", Array.of_list(List.rev(errors)))
-        raise(
+      raise(
         DecodeError(
           "All decoders given to oneOf failed. Here are all the errors: " ++
           (formattedErrors ++
@@ -223,13 +223,13 @@ let oneOf = (decoders, json) => {
   inner(decoders, list{})
 }
 
-let either = (a, b, json) => oneOf(list{a, b}, json)
+let either = (a, b) => oneOf(list{a, b})
 
-let withDefault = (default, decode, json) =>
+let withDefault = (default, decode) => json =>
   try decode(json) catch {
   | DecodeError(_) => default
   }
 
-let map = (f, decode, json) => f(decode(json))
+let map = (f, decode) => json => f(decode(json))
 
-let andThen = (b, a, json) => b(a(json), json)
+let andThen = (b, a) => json => b(a(json))(json)
